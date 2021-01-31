@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test 1 hora</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <style>
+
+        #hoursList {
+            height: 700px;
+            overflow-y: scroll;
+        }
+
+        #hoursList li:hover {
+            cursor: pointer;
+            background: rgba(48, 51, 107, 0.5);
+        }
+
+        .disabled-row {
+            background-color: rgba(83, 92, 104, 0.7);
+            color: rgba(83, 92, 104,1.0);
+        }
+
+        .taken-by-me {
+            background-color: rgba(106, 176, 76,1.0);
+            color: white;
+        }
+
+        .taken-by-another-user {
+            background-color: rgba(235, 77, 75,1.0);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <img src="/public/logo.svg" alt="">
+            </div>
+            <div class="col-md-4">
+                <div>
+                    <label for="user-name" class="form-label">Nombre de usuario</label>
+                    <input type="text" class="form-control" id="user-name" aria-describedby="userName">
+                    <div id="user-name-help" class="form-text"></div>
+                </div>
+
+                <p>Motociclistas disponibles: <strong><span id="motos-disp">-</span></strong></p>
+
+            </div>
+            <div class="col-md-8">
+                <ul class="list-group" id="hoursList"></ul>
+            </div>
+        </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+
+const socket = io()
+const internals = {
+    hours: [],
+    motos: 8
+}
+
+let userNameSelector = document.querySelector('#user-name')
+let motosDispSelector = document.querySelector('#motos-disp')
+
+main()
+
+async function main () {
+    userNameSelector.focus()
+
+    userNameSelector.addEventListener('keyup', function() {
+        verifyUserName()
+    })
+
+    let hour = moment(moment().format('YYYY-MM-DDT07:30:00'))
+
+    let hoursListSelector = document.querySelector('#hoursList')
+
+    while (hour.format('HH:mm') !== '20:00') {
+        hour.add('30', 'minutes')
+
+        let rowId = `hour-${hour.format('HHmm')}`
+
+        hoursListSelector.innerHTML += `
+            <li id="${rowId}" class="list-group-item hour-row">${hour.format('LT')}</li>
+        `
+    }
+
+    initEvents()
+    verifyUserName()
+}
+
+function initEvents (el) {
+    [...document.querySelectorAll('.hour-row')].forEach(el=> {
+        el.addEventListener('click', function(elRow) {
+            let rowId = this.id.replace('hour-', '')
+
+            if (!this.classList.contains('disabled-row')) {
+                let takeHourObj = {
+                    user: userNameSelector.value,
+                    hour: rowId
+                }
+
+                socket.emit('take-hour', takeHourObj)
+            }
+        })
+    })
+}
+
+function verifyUserName() {
+    let hoursRowsSelector = document.querySelectorAll('.hour-row')
+    let userNameHelpSelector = document.querySelector('#user-name-help')
+
+    if (userNameSelector.value.length < 1) {
+        [...hoursRowsSelector].forEach(el=> {
+            el.classList.add('disabled-row')
+        })
+
+        userNameHelpSelector.innerHTML = ''
+    } else {
+        [...hoursRowsSelector].forEach(el=> {
+            el.classList.remove('disabled-row')
+        })
+
+        userNameHelpSelector.innerHTML = `Bienvenido <strong>${userNameSelector.value}</strong>!`
+    }
+
+    checkHoursAndMotos()
+}
+
+socket.on('main', function(data) {
+    internals.hours = data.hours
+    internals.motos = data.motos
+
+    checkHoursAndMotos()
+})
+
+function checkHoursAndMotos () {
+    let hoursRowsSelector = document.querySelectorAll('.hour-row')
+    motosDispSelector.innerHTML = internals.motos
+
+    Array.from(hoursRowsSelector).forEach(el=> {
+        el.classList.remove('taken-by-me')
+        el.classList.remove('taken-by-another-user')
+    })
+
+    internals.hours.forEach(el=> {
+        if (el.user === userNameSelector.value) {
+            document.querySelector(`#hour-${el.hour}`).classList.add('taken-by-me')
+        } else {
+            document.querySelector(`#hour-${el.hour}`).classList.add('taken-by-another-user')
+        }
+    })
+}
+
+</script>
+</body>
+</html>
